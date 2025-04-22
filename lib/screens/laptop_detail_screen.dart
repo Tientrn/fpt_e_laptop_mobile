@@ -555,7 +555,7 @@ class _LaptopDetailScreenState extends State<LaptopDetailScreen> {
                               ),
                               const SizedBox(height: 12),
                               SizedBox(
-                                height: 380,
+                                height: 420,
                                 child: ListView.builder(
                                   scrollDirection: Axis.horizontal,
                                   physics: const ClampingScrollPhysics(),
@@ -606,6 +606,7 @@ class _LaptopDetailScreenState extends State<LaptopDetailScreen> {
                                             'screenSize': product.screenSize,
                                             'categoryname':
                                                 product.categoryName,
+                                            'stock': product.quantity,
                                           },
                                           onNavigateToDetail: (id) {
                                             Navigator.pushNamed(
@@ -625,6 +626,7 @@ class _LaptopDetailScreenState extends State<LaptopDetailScreen> {
                                                 'storage': product.storage,
                                                 'screenSize':
                                                     product.screenSize,
+                                                'stock': product.quantity,
                                               },
                                             );
                                           },
