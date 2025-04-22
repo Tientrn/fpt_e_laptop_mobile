@@ -22,8 +22,8 @@ class ProductCard extends StatefulWidget {
 
 String formatCurrency(dynamic price) {
   final formatter = NumberFormat.currency(
-    locale: 'en_US',
-    symbol: '\$',
+    locale: 'vi_VN',
+    symbol: '₫',
     decimalDigits: 0,
   );
   return formatter.format(price ?? 0);

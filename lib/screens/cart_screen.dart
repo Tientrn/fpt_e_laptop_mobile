@@ -25,8 +25,8 @@ class _CartScreenState extends State<CartScreen> {
   Widget build(BuildContext context) {
     final cartProvider = Provider.of<CartProvider>(context);
     final currencyFormat = NumberFormat.currency(
-      locale: 'en_US',
-      symbol: '\$',
+      locale: 'vi_VN',
+      symbol: '₫',
       decimalDigits: 0,
     );
 
