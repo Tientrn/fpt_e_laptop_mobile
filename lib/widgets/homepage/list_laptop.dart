@@ -200,7 +200,21 @@ class _ListLaptopState extends State<ListLaptop> {
                                     Navigator.pushNamed(
                                       context,
                                       AppRoutes.laptopDetail,
-                                      arguments: laptops[index].toJson(),
+                                      arguments: {
+                                        'productId': laptops[index].productId,
+                                        'productName':
+                                            laptops[index].productName,
+                                        'price': laptops[index].price,
+                                        'imageProduct':
+                                            laptops[index].imageProduct,
+                                        'categoryName':
+                                            laptops[index].categoryName,
+                                        'ram': laptops[index].ram,
+                                        'cpu': laptops[index].cpu,
+                                        'storage': laptops[index].storage,
+                                        'screenSize': laptops[index].screenSize,
+                                        'stock': laptops[index].quantity,
+                                      },
                                     );
                                   },
                                   onAddToCart: (id) {
