@@ -18,6 +18,8 @@ class _BorrowRequestsScreenState extends State<BorrowRequestsScreen> {
   List<BorrowRequestItem> _borrowRequests = [];
   bool _isLoading = true;
   String? _errorMessage;
+  List<BorrowRequestItem> _rejectedRequests = [];
+  bool _showAllRejected = false;
 
   @override
   void initState() {
@@ -29,8 +31,63 @@ class _BorrowRequestsScreenState extends State<BorrowRequestsScreen> {
     try {
       List<BorrowRequestItem> requests =
           await _apiService.fetchUserBorrowRequests();
+
+      // Chia làm 2 nhóm: approved và còn lại
+      List<BorrowRequestItem> approvedRequests =
+          requests.where((r) => r.status == "Approved").toList();
+      List<BorrowRequestItem> otherRequests =
+          requests.where((r) => r.status != "Approved").toList();
+
+      // Gọi API fetchDonateItemById song song cho approved
+      final List<Future<Map<String, dynamic>>> futures = approvedRequests.map(
+        (request) async {
+          try {
+            final item = await ApiService.fetchDonateItemById(request.itemId);
+            return {
+              'request': request,
+              'status': item.status,
+            };
+          } catch (e) {
+            print(
+                "⚠️ Error fetching donate item for request ${request.requestId}: $e");
+            return {
+              'request': request,
+              'status': 'Error',
+            };
+          }
+        },
+      ).toList();
+
+      final List<Map<String, dynamic>> results = await Future.wait(futures);
+
+      // Giữ lại các request approved nếu status != Available
+      List<BorrowRequestItem> filteredApprovedRequests = results
+          .where(
+              (res) => res['status'] != "Available" || res['status'] == "Error")
+          .map((res) => res['request'] as BorrowRequestItem)
+          .toList();
+
+      // Gộp tất cả request hợp lệ
+      List<BorrowRequestItem> allRequests = [
+        ...filteredApprovedRequests,
+        ...otherRequests
+      ];
+
+      // Sắp xếp requestId giảm dần
+      allRequests.sort((a, b) => b.requestId.compareTo(a.requestId));
+
+      // Tách rejected requests ra để xử lý riêng
+      List<BorrowRequestItem> rejectedRequests =
+          allRequests.where((r) => r.status == "Rejected").toList();
+      rejectedRequests.sort((a, b) => b.requestId.compareTo(a.requestId));
+
+      // Các request còn lại
+      List<BorrowRequestItem> finalRequests =
+          allRequests.where((r) => r.status != "Rejected").toList();
+
       setState(() {
-        _borrowRequests = requests;
+        _borrowRequests = finalRequests;
+        _rejectedRequests = rejectedRequests;
         _isLoading = false;
       });
     } catch (e) {
@@ -77,163 +134,173 @@ class _BorrowRequestsScreenState extends State<BorrowRequestsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F6FA),
-      appBar: PreferredSize(
-        preferredSize: const Size.fromHeight(56),
-        child: CustomHeader(showBackButton: true, title: "Borrow Requests"),
-      ),
-      body: _isLoading
-          ? const Center(
-              child: CircularProgressIndicator(color: Color(0xFF1976D2)))
-          : _errorMessage != null
-              ? Center(
-                  child: Text(
-                    _errorMessage!,
-                    style: const TextStyle(
-                      color: Color(0xFFD32F2F),
-                      fontSize: 16,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                )
-              : _borrowRequests.isEmpty
+      body: SafeArea(
+        child: Column(
+          children: [
+            const CustomHeader(showBackButton: true, title: "Borrow Requests"),
+            Expanded(
+              child: _isLoading
                   ? const Center(
-                      child: Text(
-                        "No borrow requests found!",
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: Color(0xFF6B7280),
+                      child:
+                          CircularProgressIndicator(color: Color(0xFF1976D2)))
+                  : _errorMessage != null
+                      ? Center(
+                          child: Text(
+                            _errorMessage!,
+                            style: const TextStyle(
+                              color: Color(0xFFD32F2F),
+                              fontSize: 16,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        )
+                      : SingleChildScrollView(
+                          child: Column(
+                            children: [
+                              ListView.builder(
+                                shrinkWrap: true,
+                                physics: const NeverScrollableScrollPhysics(),
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 10),
+                                itemCount: _borrowRequests.length,
+                                itemBuilder: (context, index) {
+                                  final request = _borrowRequests[index];
+                                  return _buildBorrowCard(request);
+                                },
+                              ),
+                              if (_rejectedRequests.isNotEmpty) ...[
+                                const SizedBox(height: 16),
+                                const Padding(
+                                  padding: EdgeInsets.symmetric(horizontal: 16),
+                                  child: Text(
+                                    "Rejected Requests",
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 16,
+                                      color: Color(0xFFD32F2F),
+                                    ),
+                                  ),
+                                ),
+                                ...(_showAllRejected
+                                        ? _rejectedRequests
+                                        : _rejectedRequests.take(1))
+                                    .map((request) => _buildBorrowCard(request))
+                                    .toList(),
+                                if (_rejectedRequests.length > 2)
+                                  Center(
+                                    child: TextButton(
+                                      onPressed: () {
+                                        setState(() => _showAllRejected =
+                                            !_showAllRejected);
+                                      },
+                                      child: Text(
+                                        _showAllRejected ? "Hide" : "Show more",
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.w500,
+                                          fontSize: 14,
+                                          color: Color(0xFF1976D2),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                              ]
+                            ],
+                          ),
+                        ),
+            ),
+            const CustomFooter(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBorrowCard(BorrowRequestItem request) {
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              request.itemName,
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+                color: Color(0xFF1A1A1A),
+              ),
+            ),
+            const SizedBox(height: 10),
+            const Text(
+              "Borrower Information",
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: 14,
+                color: Color(0xFF1976D2),
+              ),
+            ),
+            const SizedBox(height: 6),
+            _buildInfoRow("Borrower Name", request.fullName),
+            _buildInfoRow("Email", request.email),
+            _buildInfoRow("Phone Number", request.phoneNumber),
+            _buildInfoRow("Major", request.majorName ?? ""),
+            const SizedBox(height: 10),
+            const Text(
+              "Borrow Details",
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: 14,
+                color: Color(0xFF1976D2),
+              ),
+            ),
+            const SizedBox(height: 6),
+            _buildInfoRow("Device Name", request.itemName),
+            _buildInfoRow("Start Date",
+                DateFormat('dd/MM/yyyy').format(request.startDate)),
+            _buildInfoRow(
+                "End Date", DateFormat('dd/MM/yyyy').format(request.endDate)),
+            const SizedBox(height: 10),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    const Text(
+                      "Status: ",
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14,
+                        color: Color(0xFF1A1A1A),
+                      ),
+                    ),
+                    Chip(
+                      label: Text(
+                        request.status,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
                           fontWeight: FontWeight.w500,
                         ),
                       ),
-                    )
-                  : ListView.builder(
-                      padding: const EdgeInsets.symmetric(vertical: 10),
-                      itemCount: _borrowRequests.length,
-                      itemBuilder: (context, index) {
-                        final request = _borrowRequests[index];
-                        return Card(
-                          elevation: 2,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          margin: const EdgeInsets.symmetric(
-                              horizontal: 16, vertical: 6),
-                          child: Padding(
-                            padding: const EdgeInsets.all(14),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  request.itemName,
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 16,
-                                    color: Color(0xFF1A1A1A),
-                                  ),
-                                ),
-                                const SizedBox(height: 10),
-                                const Text(
-                                  "Borrower Information",
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 14,
-                                    color: Color(0xFF1976D2),
-                                  ),
-                                ),
-                                const SizedBox(height: 6),
-                                _buildInfoRow(
-                                    "Borrower Name", request.fullName),
-                                _buildInfoRow("Email", request.email),
-                                _buildInfoRow(
-                                    "Phone Number", request.phoneNumber),
-                                const SizedBox(height: 10),
-                                const Text(
-                                  "Borrow Details",
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 14,
-                                    color: Color(0xFF1976D2),
-                                  ),
-                                ),
-                                const SizedBox(height: 6),
-                                _buildInfoRow("Device Name", request.itemName),
-                                _buildInfoRow(
-                                  "Start Date",
-                                  DateFormat('dd/MM/yyyy')
-                                      .format(request.startDate),
-                                ),
-                                _buildInfoRow(
-                                  "End Date",
-                                  DateFormat('dd/MM/yyyy')
-                                      .format(request.endDate),
-                                ),
-                                const SizedBox(height: 10),
-                                Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Row(
-                                      children: [
-                                        const Text(
-                                          "Status: ",
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.w600,
-                                            fontSize: 14,
-                                            color: Color(0xFF1A1A1A),
-                                          ),
-                                        ),
-                                        Chip(
-                                          label: Text(
-                                            request.status,
-                                            style: const TextStyle(
-                                              color: Colors.white,
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.w500,
-                                            ),
-                                          ),
-                                          backgroundColor:
-                                              _getStatusColor(request.status),
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius:
-                                                BorderRadius.circular(8),
-                                          ),
-                                          elevation: 1,
-                                          shadowColor:
-                                              Colors.black.withOpacity(0.1),
-                                        ),
-                                      ],
-                                    ),
-                                    if (request.status == "Pending")
-                                      GestureDetector(
-                                        onTap: () =>
-                                            _confirmCancel(request.requestId),
-                                        child: Container(
-                                          padding: const EdgeInsets.all(6),
-                                          decoration: const BoxDecoration(
-                                            gradient: LinearGradient(
-                                              colors: [
-                                                Color(0xFFD32F2F),
-                                                Color(0xFFF44336),
-                                              ],
-                                            ),
-                                            shape: BoxShape.circle,
-                                          ),
-                                          child: const Icon(
-                                            Icons.cancel,
-                                            color: Colors.white,
-                                            size: 24,
-                                          ),
-                                        ),
-                                      ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ),
-                        );
-                      },
+                      backgroundColor: _getStatusColor(request.status),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      elevation: 1,
+                      shadowColor: Colors.black.withOpacity(0.1),
                     ),
-      bottomNavigationBar: const CustomFooter(),
+                  ],
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 

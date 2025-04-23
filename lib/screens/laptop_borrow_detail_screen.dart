@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../models/feedback_borrow_model.dart';
+import '../../models/donate_item_model.dart';
 import '../../services/api_service.dart';
 import '../widgets/homepage/custom_header.dart';
 import '../widgets/homepage/custom_footer.dart';
@@ -23,6 +24,7 @@ class _LaptopBorrowDetailScreenState extends State<LaptopBorrowDetailScreen> {
   int? selectedMajorId;
   List<Map<String, dynamic>> majors = [];
   bool _showAllFeedbacks = false;
+  DonateItem? _donateItem;
 
   double get averageRating {
     if (_feedbacks.isEmpty) return 0;
@@ -54,19 +56,28 @@ class _LaptopBorrowDetailScreenState extends State<LaptopBorrowDetailScreen> {
         images.insert(0, _mainImage!);
       }
 
+      // Fetch detailed donate item data
+      DonateItem donateItem = await ApiService.fetchDonateItemById(itemId);
+
       List<Map<String, dynamic>> allMajors = await _apiService.fetchMajors();
-      setState(() {
-        majors = allMajors;
-        _feedbacks = allFeedbacks.where((fb) => fb.itemId == itemId).toList();
-        _imageUrls = images.isNotEmpty
-            ? images
-            : [_mainImage ?? "https://via.placeholder.com/250"];
-        _isLoading = false;
-      });
+
+      if (mounted) {
+        setState(() {
+          majors = allMajors;
+          _feedbacks = allFeedbacks.where((fb) => fb.itemId == itemId).toList();
+          _imageUrls = images.isNotEmpty
+              ? images
+              : [_mainImage ?? "https://via.placeholder.com/250"];
+          _donateItem = donateItem;
+          _isLoading = false;
+        });
+      }
     } catch (e) {
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
       print("❌ Error fetching data: $e");
     }
   }
@@ -109,8 +120,9 @@ class _LaptopBorrowDetailScreenState extends State<LaptopBorrowDetailScreen> {
       backgroundColor: const Color(0xFFF5F6FA),
       appBar: PreferredSize(
         preferredSize: const Size.fromHeight(56),
-        child:
-            CustomHeader(showBackButton: true, title: "${laptop['itemName']}"),
+        child: CustomHeader(
+            showBackButton: true,
+            title: _donateItem?.itemName ?? "${laptop['itemName']}"),
       ),
       body: SingleChildScrollView(
         child: Padding(
@@ -203,20 +215,109 @@ class _LaptopBorrowDetailScreenState extends State<LaptopBorrowDetailScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _buildInfoSection("CPU", laptop['cpu']),
-                      _buildInfoSection("RAM", laptop['ram']),
-                      _buildInfoSection("Storage", laptop['storage']),
+                      // Basic Information
+                      _buildSectionTitle(
+                          "Basic Information", Icons.info_outline),
                       _buildInfoSection(
-                          "Screen Size", "${laptop['screenSize']} inch"),
-                      _buildInfoSection("Condition", laptop['conditionItem']),
+                          "CPU", _donateItem?.cpu ?? laptop['cpu']),
+                      _buildInfoSection(
+                          "RAM", _donateItem?.ram ?? laptop['ram']),
+                      _buildInfoSection(
+                          "Storage", _donateItem?.storage ?? laptop['storage']),
+                      _buildInfoSection("Screen Size",
+                          "${_donateItem?.screenSize ?? laptop['screenSize']} inch"),
+                      _buildInfoSection(
+                          "Condition",
+                          _donateItem?.conditionItem ??
+                              laptop['conditionItem']),
                       _buildInfoSection(
                         "Status",
-                        laptop['status'] == "Available"
+                        (_donateItem?.status ?? laptop['status']) == "Available"
                             ? "Available"
                             : "Not Available",
-                        icon: laptop['status'] == "Available"
+                        icon: (_donateItem?.status ?? laptop['status']) ==
+                                "Available"
                             ? Icons.check
                             : Icons.close,
+                      ),
+
+                      // Design Specifications
+                      if (_donateItem != null &&
+                          (_donateItem!.model.isNotEmpty ||
+                              _donateItem!.color.isNotEmpty ||
+                              _donateItem!.productionYear > 0))
+                        _buildSectionTitle("Design", Icons.design_services),
+
+                      if (_donateItem?.model.isNotEmpty ?? false)
+                        _buildInfoSection("Model", _donateItem!.model),
+
+                      if (_donateItem?.color.isNotEmpty ?? false)
+                        _buildInfoSection("Color", _donateItem!.color),
+
+                      if (_donateItem?.productionYear != null &&
+                          _donateItem!.productionYear > 0)
+                        _buildInfoSection("Production Year",
+                            _donateItem!.productionYear.toString()),
+
+                      // Additional Hardware
+                      if (_donateItem != null &&
+                          (_donateItem!.graphicsCard.isNotEmpty ||
+                              _donateItem!.battery.isNotEmpty ||
+                              _donateItem!.ports.isNotEmpty))
+                        _buildSectionTitle(
+                            "Additional Hardware", Icons.hardware),
+
+                      if (_donateItem?.graphicsCard.isNotEmpty ?? false)
+                        _buildInfoSection(
+                            "Graphics Card", _donateItem!.graphicsCard),
+
+                      if (_donateItem?.battery.isNotEmpty ?? false)
+                        _buildInfoSection("Battery", _donateItem!.battery),
+
+                      if (_donateItem?.ports.isNotEmpty ?? false)
+                        _buildInfoSection("Ports", _donateItem!.ports),
+
+                      // Software & System
+                      if (_donateItem != null &&
+                          (_donateItem!.operatingSystem.isNotEmpty ||
+                              _donateItem!.serialNumber.isNotEmpty))
+                        _buildSectionTitle("System", Icons.computer),
+
+                      if (_donateItem?.operatingSystem.isNotEmpty ?? false)
+                        _buildInfoSection(
+                            "Operating System", _donateItem!.operatingSystem),
+
+                      if (_donateItem?.serialNumber.isNotEmpty ?? false)
+                        _buildInfoSection(
+                            "Serial Number", _donateItem!.serialNumber),
+
+                      // Description
+                      if (_donateItem?.description.isNotEmpty ?? false) ...[
+                        _buildSectionTitle("Description", Icons.description),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF5F6FA),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            _donateItem!.description,
+                            style: const TextStyle(
+                              fontSize: 14,
+                              color: Color(0xFF6B7280),
+                              height: 1.5,
+                            ),
+                          ),
+                        ),
+                      ],
+
+                      // Borrowing Statistics
+                      _buildSectionTitle("Statistics", Icons.analytics),
+                      _buildInfoSection(
+                        "Times Borrowed",
+                        (_donateItem?.totalBorrowedCount ?? 0).toString(),
+                        icon: Icons.history,
                       ),
                     ],
                   ),
@@ -442,6 +543,44 @@ class _LaptopBorrowDetailScreenState extends State<LaptopBorrowDetailScreen> {
     );
   }
 
+  Widget _buildSectionTitle(String title, IconData icon) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 16, bottom: 8),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1976D2).withOpacity(0.1),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Icon(
+              icon,
+              color: const Color(0xFF1976D2),
+              size: 18,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF1976D2),
+              shadows: [
+                Shadow(
+                  color: Colors.black12,
+                  blurRadius: 1,
+                  offset: Offset(0, 1),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _confirmBorrow(BuildContext context, int itemId, ApiService apiService) {
     bool isLoading = false;
     bool isAgreementChecked = false;
@@ -535,10 +674,22 @@ class _LaptopBorrowDetailScreenState extends State<LaptopBorrowDetailScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            _buildInfoSection("Name", laptop['itemName']),
-                            _buildInfoSection("CPU", laptop['cpu']),
-                            _buildInfoSection("RAM", laptop['ram']),
-                            _buildInfoSection("Storage", laptop['storage']),
+                            _buildInfoSection("Name",
+                                _donateItem?.itemName ?? laptop['itemName']),
+                            _buildInfoSection(
+                                "CPU", _donateItem?.cpu ?? laptop['cpu']),
+                            _buildInfoSection(
+                                "RAM", _donateItem?.ram ?? laptop['ram']),
+                            _buildInfoSection("Storage",
+                                _donateItem?.storage ?? laptop['storage']),
+                            if (_donateItem?.model.isNotEmpty ?? false)
+                              _buildInfoSection("Model", _donateItem!.model),
+                            if (_donateItem?.color.isNotEmpty ?? false)
+                              _buildInfoSection("Color", _donateItem!.color),
+                            if (_donateItem?.operatingSystem.isNotEmpty ??
+                                false)
+                              _buildInfoSection(
+                                  "OS", _donateItem!.operatingSystem),
                           ],
                         ),
                       ),
@@ -831,21 +982,48 @@ class _LaptopBorrowDetailScreenState extends State<LaptopBorrowDetailScreen> {
 
                                       final borrowRequests = await apiService
                                           .fetchUserBorrowRequests();
-                                      final existingActiveRequest =
+                                      final hasApprovedRequest =
                                           borrowRequests.any(
                                         (request) =>
-                                            (request.status == 'Pending' ||
-                                                request.status == 'Approved'),
+                                            request.status == 'Approved',
                                       );
 
-                                      if (existingActiveRequest) {
+                                      if (hasApprovedRequest) {
+                                        final donateItem = await ApiService
+                                            .fetchDonateItemById(itemId);
+
+                                        if (donateItem.status ==
+                                                "NotAvailable" ||
+                                            donateItem.status == "Borrwing") {
+                                          setState(() => isLoading = false);
+                                          Navigator.pop(context);
+                                          ScaffoldMessenger.of(context)
+                                              .showSnackBar(
+                                            const SnackBar(
+                                              content: Text(
+                                                  "You already have an approved request, and the item is not available."),
+                                              backgroundColor: Colors.orange,
+                                              duration: Duration(seconds: 8),
+                                            ),
+                                          );
+                                          return;
+                                        }
+                                      }
+
+                                      final hasPendingRequest =
+                                          borrowRequests.any(
+                                        (request) =>
+                                            request.status == 'Pending',
+                                      );
+
+                                      if (hasPendingRequest) {
                                         setState(() => isLoading = false);
                                         Navigator.pop(context);
                                         ScaffoldMessenger.of(context)
                                             .showSnackBar(
                                           const SnackBar(
                                             content: Text(
-                                                "You already have a pending or approved request. Please wait before submitting a new one."),
+                                                "You already have a pending request. Please wait before submitting a new one."),
                                             backgroundColor: Colors.orange,
                                             duration: Duration(seconds: 8),
                                           ),
