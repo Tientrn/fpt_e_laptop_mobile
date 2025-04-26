@@ -382,7 +382,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                                     height: 20,
                                   ),
                                   if (widget.orderStatus.toLowerCase() ==
-                                      'approved') ...[
+                                      'paid') ...[
                                     const Text(
                                       'Rate Product',
                                       style: TextStyle(

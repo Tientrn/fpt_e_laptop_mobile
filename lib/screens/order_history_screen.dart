@@ -374,7 +374,7 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
 
   Color _getStatusColor(String status) {
     switch (status.toLowerCase()) {
-      case 'approved':
+      case 'paid':
         return const Color(0xFF2E7D32);
       case 'pending':
         return const Color(0xFFFFB300);

@@ -61,13 +61,19 @@ class _LaptopBorrowScreenState extends State<LaptopBorrowScreen> {
   }
 
   void _filterLaptops(List<ItemModel> laptops, String query) {
+    final selectedCategory = _categories.firstWhere(
+      (c) => c.categoryName == _selectedCategory,
+      orElse: () => Category(categoryId: 0, categoryName: "All"),
+    );
+
     setState(() {
       _filteredLaptops = laptops.where((laptop) {
         final matchesSearch =
             laptop.itemName.toLowerCase().contains(query.toLowerCase());
-        final matchesCategory = _selectedCategory == 'All' ||
-            (laptop.conditionItem?.toLowerCase() ==
-                _selectedCategory.toLowerCase());
+
+        final matchesCategory = selectedCategory.categoryId == 0 ||
+            laptop.categoryId == selectedCategory.categoryId;
+
         final cpuValue = laptop.cpu?.toLowerCase() ?? '';
         final matchesCpu = _selectedCpu == 'All' ||
             cpuValue.contains(_selectedCpu.toLowerCase());

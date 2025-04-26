@@ -52,4 +52,6 @@ class ApiConstants {
   static const String compensationTransactions =
       '$baseUrl/compensation-transactions';
   static const String reportDamages = '$baseUrl/report-damages';
+
+  static const String updateProduct = '/products';
 }

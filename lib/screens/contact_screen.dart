@@ -65,7 +65,8 @@ class ContactInfo extends StatelessWidget {
         children: [
           _buildContactItem(
             icon: Icons.location_on,
-            title: '123 Main Street, City, Country',
+            title:
+                'Lô E2a-7, Đường D1 Khu Công nghệ cao, P. Long Thạnh Mỹ, TP. Thủ Đức, TP. Hồ Chí Minh',
             onTap: () async {
               const url =
                   'https://maps.google.com/?q=123+Main+Street,+City,+Country';
@@ -92,9 +93,9 @@ class ContactInfo extends StatelessWidget {
           ),
           _buildContactItem(
             icon: Icons.phone,
-            title: '+1 123 456 7890',
+            title: '+84 337496879',
             onTap: () async {
-              const phone = 'tel:+11234567890';
+              const phone = 'tel:+84337496879';
               if (await canLaunchUrlString(phone)) {
                 await launchUrlString(phone);
               } else {
@@ -118,9 +119,9 @@ class ContactInfo extends StatelessWidget {
           ),
           _buildContactItem(
             icon: Icons.email,
-            title: 'support@example.com',
+            title: 'trannhattien160802@gmail.com',
             onTap: () async {
-              const email = 'mailto:support@example.com';
+              const email = 'mailto:trannhattien160802@gmail.com';
               if (await canLaunchUrlString(email)) {
                 await launchUrlString(email);
               } else {

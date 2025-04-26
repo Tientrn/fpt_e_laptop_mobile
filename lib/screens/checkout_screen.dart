@@ -13,6 +13,7 @@ import '../../services/api_service.dart';
 import '../models/order_detail_model.dart';
 import '../models/order_model.dart';
 import '../models/payment_response_model.dart';
+import '../models/product_model.dart';
 import '../utils/api_constants.dart';
 import '../widgets/homepage/custom_header.dart';
 import '../routes/app_routes.dart';
@@ -38,6 +39,7 @@ class _CheckoutScreenState extends State<CheckoutScreen>
   OrderResponse? _lastOrderResponse;
   final AppLinks _appLinks = AppLinks();
   StreamSubscription<Uri>? _linkSubscription;
+  List<Product?> _detailedProducts = [];
 
   @override
   void initState() {
@@ -46,6 +48,7 @@ class _CheckoutScreenState extends State<CheckoutScreen>
     _loadUserInfo();
     _fetchUserInfoFromApi();
     _initDeepLinks();
+    _loadDetailedProductInfo();
   }
 
   @override
@@ -87,6 +90,29 @@ class _CheckoutScreenState extends State<CheckoutScreen>
     } catch (e) {
       debugPrint('Error initializing deep links: $e');
     }
+  }
+
+  Future<void> _loadDetailedProductInfo() async {
+    final cartProvider = Provider.of<CartProvider>(context, listen: false);
+
+    List<Product?> loaded = [];
+
+    for (var item in cartProvider.cart) {
+      try {
+        final product =
+            await ApiService.fetchProduct(int.parse(item.productId));
+        loaded.add(product);
+      } catch (e) {
+        debugPrint('[Product Fetch Error] ${e.toString()}');
+        loaded.add(null); // để tránh crash nếu 1 sản phẩm fail
+      }
+    }
+
+    if (!mounted) return;
+
+    setState(() {
+      _detailedProducts = loaded;
+    });
   }
 
   Future<void> _handlePaymentSuccess(Uri uri) async {
@@ -201,7 +227,34 @@ class _CheckoutScreenState extends State<CheckoutScreen>
         } else {
           debugPrint('[Order Update] No order response available to update.');
         }
+        bool allUpdated = true;
+        final cartProvider = Provider.of<CartProvider>(context, listen: false);
+        for (int i = 0; i < cartProvider.cart.length; i++) {
+          final item = cartProvider.cart[i];
+          final product = _detailedProducts[i];
 
+          if (product == null) continue;
+
+          final updatedQuantity = (product.quantity - item.quantity)
+              .clamp(0, double.infinity)
+              .toInt();
+
+          final success = await ApiService.updateProductWithNewQuantity(
+              product, updatedQuantity);
+          if (!success) {
+            allUpdated = false;
+            debugPrint(
+                '[❌] Failed to update quantity for product ${product.productId}');
+          }
+        }
+
+        if (allUpdated) {
+          cartProvider.clearCart(); // ✅ chỉ clear nếu mọi thứ thành công
+          debugPrint('[✔] All product quantities updated. Cart cleared.');
+        } else {
+          debugPrint(
+              '[❌] Some updates failed. Cart not cleared to prevent data loss.');
+        }
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: const Text(
@@ -490,7 +543,6 @@ class _CheckoutScreenState extends State<CheckoutScreen>
             payment.paymentId, "myapp://pay-success");
 
         if (payUrl != null) {
-          cartProvider.clearCart();
           _paymentIdToConfirm = payment.paymentId;
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(

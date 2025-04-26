@@ -10,6 +10,7 @@ class ItemModel {
   final String conditionItem;
   final int totalBorrowedCount;
   final String status;
+  final int? categoryId;
 
   ItemModel({
     required this.itemId,
@@ -23,6 +24,7 @@ class ItemModel {
     required this.conditionItem,
     required this.totalBorrowedCount,
     required this.status,
+    this.categoryId,
   });
 
   // Chuyển từ JSON sang đối tượng ItemModel
@@ -39,6 +41,7 @@ class ItemModel {
       conditionItem: json['conditionItem'],
       totalBorrowedCount: json['totalBorrowedCount'],
       status: json['status'],
+      categoryId: json['categoryId'],
     );
   }
   Map<String, dynamic> toJson() {

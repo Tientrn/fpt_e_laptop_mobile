@@ -1471,4 +1471,105 @@ class ApiService {
       throw Exception('Failed to fetch report damages');
     }
   }
+
+  static Future<bool> updateProduct({
+    required int productId,
+    required String productName,
+    required String cpu,
+    required String ram,
+    required String storage,
+    required String graphicsCard,
+    required String battery,
+    required String screenSize,
+    required String operatingSystem,
+    required String ports,
+    required String color,
+    required int quantity,
+    required double price,
+    required int categoryId,
+    required int shopId,
+    required String model,
+    required int productionYear,
+    required String description,
+    File? imageFile,
+  }) async {
+    final url = Uri.parse(
+        '${ApiConstants.baseUrl}${ApiConstants.updateProduct}/$productId');
+
+    final request = http.MultipartRequest('PUT', url);
+
+    // Thêm form fields
+    request.fields.addAll({
+      'ProductId': productId.toString(),
+      'ProductName': productName,
+      'Cpu': cpu,
+      'Ram': ram,
+      'Storage': storage,
+      'GraphicsCard': graphicsCard,
+      'Battery': battery,
+      'ScreenSize': screenSize,
+      'OperatingSystem': operatingSystem,
+      'Ports': ports,
+      'Color': color,
+      'Quantity': quantity.toString(),
+      'Price': price.toString(),
+      'CategoryId': categoryId.toString(),
+      'ShopId': shopId.toString(),
+      'Model': model.toString(),
+      'ProductionYear': productionYear.toString(),
+      'Description': description,
+    });
+
+    // Nếu có ảnh thì thêm vào
+    if (imageFile != null) {
+      request.files.add(
+        await http.MultipartFile.fromPath(
+          'ImageFile',
+          imageFile.path,
+          contentType: MediaType('image', 'webp'), // tuỳ theo loại file
+        ),
+      );
+    }
+
+    try {
+      final streamedResponse = await request.send();
+      final response = await http.Response.fromStream(streamedResponse);
+
+      if (response.statusCode == 200 || response.statusCode == 204) {
+        return true;
+      } else {
+        print('Update product failed: ${response.statusCode}');
+        print('Body: ${response.body}');
+        return false;
+      }
+    } catch (e) {
+      print('Exception updating product: $e');
+      return false;
+    }
+  }
+
+  static Future<bool> updateProductWithNewQuantity(
+      Product product, int newQuantity) async {
+    return await updateProduct(
+      productId: product.productId,
+      productName: product.productName,
+      cpu: product.cpu,
+      ram: product.ram,
+      storage: product.storage,
+      graphicsCard: product.graphicsCard,
+      battery: product.battery,
+      screenSize: product.screenSize,
+      operatingSystem: product.operatingSystem,
+      ports: product.ports,
+      color: product.color,
+      quantity: newQuantity, // 👈 quantity mới
+      price: product.price.toDouble(), // 👈 đúng kiểu `double`
+      categoryId: product.categoryId,
+      shopId: product.shopId,
+      model: product.model.toString(), // 👈 bạn đang dùng String cho model
+      productionYear: product.productionYear,
+      description: product.description,
+      imageFile: null, // 👈 không update ảnh
+    );
+  }
 }
