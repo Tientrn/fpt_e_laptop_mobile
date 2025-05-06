@@ -340,6 +340,8 @@ class _BorrowRequestsScreenState extends State<BorrowRequestsScreen> {
         return const Color(0xFF2E7D32);
       case "Rejected":
         return const Color(0xFFD32F2F);
+      case "Done":
+        return const Color.fromARGB(255, 60, 155, 211);
       default:
         return const Color(0xFF757575);
     }
