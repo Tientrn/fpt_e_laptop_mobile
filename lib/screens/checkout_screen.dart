@@ -32,7 +32,6 @@ class _CheckoutScreenState extends State<CheckoutScreen>
   final TextEditingController _phoneController = TextEditingController();
   bool _isHandlingDeepLinkCancel = false;
   bool _isHandlingDeepLink = false;
-  bool _initialUriHandled = false; // <-- thêm cờ này để kiểm tra gọi duy nhất
   final Set<String> _handledUris = {};
   AppLifecycleState? _lastState;
   int? _paymentIdToConfirm;
@@ -65,51 +64,38 @@ class _CheckoutScreenState extends State<CheckoutScreen>
     try {
       final prefs = await SharedPreferences.getInstance();
       final wasHandled = prefs.getBool('uriHandled') ?? false;
-
       if (!wasHandled) {
         final initialUri = await _appLinks.getInitialAppLink();
-        debugPrint('[DeepLink] Initial URI: $initialUri');
         if (initialUri != null &&
             initialUri.toString().startsWith('myapp://pay-success')) {
-          await prefs.setBool('uriHandled', true); // Lưu cờ đã xử lý
+          await prefs.setBool('uriHandled', true);
           await _handlePaymentSuccess(initialUri);
         }
       }
-
       _linkSubscription = _appLinks.uriLinkStream.listen(
         (Uri? uri) {
-          debugPrint('[DeepLink] Stream URI: $uri');
           if (uri != null && uri.toString().startsWith('myapp://pay-success')) {
             _handlePaymentSuccess(uri);
           }
         },
-        onError: (err) {
-          debugPrint('Error handling deep link: $err');
-        },
+        onError: (err) {},
       );
-    } catch (e) {
-      debugPrint('Error initializing deep links: $e');
-    }
+    } catch (e) {}
   }
 
   Future<void> _loadDetailedProductInfo() async {
     final cartProvider = Provider.of<CartProvider>(context, listen: false);
-
     List<Product?> loaded = [];
-
     for (var item in cartProvider.cart) {
       try {
         final product =
             await ApiService.fetchProduct(int.parse(item.productId));
         loaded.add(product);
-      } catch (e) {
-        debugPrint('[Product Fetch Error] ${e.toString()}');
-        loaded.add(null); // để tránh crash nếu 1 sản phẩm fail
+      } catch (_) {
+        loaded.add(null);
       }
     }
-
     if (!mounted) return;
-
     setState(() {
       _detailedProducts = loaded;
     });
@@ -122,67 +108,49 @@ class _CheckoutScreenState extends State<CheckoutScreen>
     _isHandlingDeepLink = true;
     _handledUris.add(uriKey);
 
-    debugPrint('[DeepLink] Handling URI: $uri');
     await Future.delayed(const Duration(milliseconds: 300));
     final status = uri.queryParameters['status'];
     final cancel = uri.queryParameters['cancel'] == 'true';
+
     final prefs = await SharedPreferences.getInstance();
     final savedPaymentId = prefs.getInt('paymentId');
-
-    await _appLinks.getLatestAppLink(); // Gọi để reset trạng thái
-    // Hoặc bạn có thể xoá thủ công mọi `paymentId` nếu cần
     await prefs.remove('paymentId');
+    await _appLinks.getLatestAppLink();
 
     if (status == 'CANCELLED' || cancel) {
       _isHandlingDeepLinkCancel = true;
 
-      if (_lastOrderResponse != null) {
-        try {
-          await ApiService.updateOrder(
-            _lastOrderResponse!.orderId,
-            _lastOrderResponse!.totalPrice.toDouble(),
-            _lastOrderResponse!.orderAddress,
-            _lastOrderResponse!.field,
-            "Cancelled",
-          );
+      final transactionCode = uri.queryParameters['orderCode'];
+      debugPrint('[CANCELLED] Transaction code: $transactionCode');
+
+      if (transactionCode != null && transactionCode.isNotEmpty) {
+        final response = await ApiService.updateTransactionStatus(
+            transactionCode, 'CANCELLED');
+        if (response.statusCode == 200) {
+          debugPrint('[CANCELLED] ✅ Update transaction success!');
+        } else {
           debugPrint(
-              '[Order Update] Successfully updated order ${_lastOrderResponse!.orderId} to Cancelled');
-        } catch (e) {
-          debugPrint('[Order Update] Failed to update order: $e');
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: const Text('Cannot update the order status.'),
-              backgroundColor: const Color(0xFFEF5350),
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-              margin: const EdgeInsets.all(10),
-              duration: const Duration(seconds: 3),
-            ),
-          );
+              '[CANCELLED] ❌ Update transaction failed! Status: ${response.statusCode}');
+          debugPrint('[CANCELLED] ❌ Body: ${response.body}');
         }
-      } else {
-        debugPrint('[Order Update] No order response available to update.');
       }
+      // if (_lastOrderResponse != null) {
+      //   await ApiService.updateOrder(
+      //     _lastOrderResponse!.orderId,
+      //     _lastOrderResponse!.totalPrice.toDouble(),
+      //     _lastOrderResponse!.orderAddress,
+      //     _lastOrderResponse!.field,
+      //     "Cancelled",
+      //   );
+      // }
 
       if (!mounted) return;
-      setState(() {});
-
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: const Text('Payment was cancelled.'),
-          backgroundColor: const Color(0xFFEF5350),
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
-          ),
-          margin: const EdgeInsets.all(10),
-          duration: const Duration(seconds: 3),
+          backgroundColor: Colors.red,
         ),
       );
-
-      // ⚠️ Đừng pushNamed lại chính màn hình Checkout vì sẽ gọi lại initState
       Future.delayed(const Duration(milliseconds: 300), () {
         if (!mounted) return;
         Navigator.popUntil(context, (route) => route.isFirst);
@@ -193,111 +161,41 @@ class _CheckoutScreenState extends State<CheckoutScreen>
     }
 
     if (savedPaymentId != null && status == 'PAID') {
-      final result = await ApiService.confirmPayment(savedPaymentId);
-      if (result) {
-        debugPrint(
-            '[✅ Confirm Payment] Successfully confirmed paymentId: $savedPaymentId');
-
-        if (_lastOrderResponse != null) {
-          try {
-            await ApiService.updateOrder(
-              _lastOrderResponse!.orderId,
-              _lastOrderResponse!.totalPrice.toDouble(),
-              _lastOrderResponse!.orderAddress,
-              _lastOrderResponse!.field,
-              "Paid",
-            );
-            debugPrint(
-                '[Order Update] Successfully updated order ${_lastOrderResponse!.orderId} to Paid');
-          } catch (e) {
-            debugPrint('[Order Update] Failed to update order: $e');
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: const Text('Cannot update the order status.'),
-                backgroundColor: const Color(0xFFEF5350),
-                behavior: SnackBarBehavior.floating,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                margin: const EdgeInsets.all(10),
-                duration: const Duration(seconds: 3),
-              ),
-            );
-          }
-        } else {
-          debugPrint('[Order Update] No order response available to update.');
-        }
-        bool allUpdated = true;
-        final cartProvider = Provider.of<CartProvider>(context, listen: false);
-        for (int i = 0; i < cartProvider.cart.length; i++) {
-          final item = cartProvider.cart[i];
-          final product = _detailedProducts[i];
-
-          if (product == null) continue;
-
-          final updatedQuantity = (product.quantity - item.quantity)
-              .clamp(0, double.infinity)
-              .toInt();
-
-          final success = await ApiService.updateProductWithNewQuantity(
-              product, updatedQuantity);
-          if (!success) {
-            allUpdated = false;
-            debugPrint(
-                '[❌] Failed to update quantity for product ${product.productId}');
-          }
-        }
-
-        if (allUpdated) {
-          cartProvider.clearCart(); // ✅ chỉ clear nếu mọi thứ thành công
-          debugPrint('[✔] All product quantities updated. Cart cleared.');
-        } else {
-          debugPrint(
-              '[❌] Some updates failed. Cart not cleared to prevent data loss.');
-        }
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text(
-              'Payment confirmed successfully!',
-              style: TextStyle(color: Colors.white, fontSize: 14),
-            ),
-            backgroundColor: Color(0xFF2E7D32),
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
-            ),
-            margin: const EdgeInsets.all(10),
-            duration: const Duration(seconds: 3),
-          ),
-        );
-        Future.delayed(const Duration(milliseconds: 300), () {
-          if (!mounted) return;
-          Navigator.popUntil(context, (route) => route.isFirst);
-        });
-      } else {
-        debugPrint(
-            '[❌ Confirm Payment] Failed to confirm paymentId: $savedPaymentId');
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text(
-              'Failed to confirm payment.',
-              style: TextStyle(color: Colors.white, fontSize: 14),
-            ),
-            backgroundColor: Color(0xFFEF5350),
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
-            ),
-            margin: const EdgeInsets.all(10),
-            duration: const Duration(seconds: 3),
-          ),
-        );
-        Future.delayed(const Duration(milliseconds: 300), () {
-          if (!mounted) return;
-          Navigator.popUntil(context, (route) => route.isFirst);
-        });
+      // if (_lastOrderResponse != null) {
+      //   await ApiService.updateOrder(
+      //     _lastOrderResponse!.orderId,
+      //     _lastOrderResponse!.totalPrice.toDouble(),
+      //     _lastOrderResponse!.orderAddress,
+      //     _lastOrderResponse!.field,
+      //     "success",
+      //   );
+      // }
+      final cartProvider = Provider.of<CartProvider>(context, listen: false);
+      bool allUpdated = true;
+      for (int i = 0; i < cartProvider.cart.length; i++) {
+        final item = cartProvider.cart[i];
+        final product = _detailedProducts[i];
+        if (product == null) continue;
+        final updatedQuantity = (product.quantity - item.quantity)
+            .clamp(0, double.infinity)
+            .toInt();
+        final success = await ApiService.updateProductWithNewQuantity(
+            product, updatedQuantity);
+        if (!success) allUpdated = false;
       }
+      if (allUpdated) cartProvider.clearCart();
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Payment confirmed successfully!'),
+          backgroundColor: Colors.green,
+        ),
+      );
+      Future.delayed(const Duration(milliseconds: 300), () {
+        if (!mounted) return;
+        Navigator.popUntil(context, (route) => route.isFirst);
+      });
     }
 
     _paymentIdToConfirm = null;
@@ -307,49 +205,6 @@ class _CheckoutScreenState extends State<CheckoutScreen>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) async {
-    if (_lastState == AppLifecycleState.paused &&
-        state == AppLifecycleState.resumed) {
-      final prefs = await SharedPreferences.getInstance();
-      final pendingPaymentId = prefs.getInt('pendingPaymentId');
-      if (pendingPaymentId != null) {
-        final result = await ApiService.confirmPayment(pendingPaymentId);
-        if (result) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: const Text(
-                'Payment confirmed successfully!',
-                style: TextStyle(color: Colors.white, fontSize: 14),
-              ),
-              backgroundColor: const Color(0xFF2E7D32),
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-              margin: const EdgeInsets.all(10),
-              duration: const Duration(seconds: 3),
-            ),
-          );
-          await prefs.remove('pendingPaymentId');
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: const Text(
-                'Failed to confirm payment.',
-                style: TextStyle(color: Colors.white, fontSize: 14),
-              ),
-              backgroundColor: const Color(0xFFEF5350),
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-              margin: const EdgeInsets.all(10),
-              duration: const Duration(seconds: 3),
-            ),
-          );
-        }
-        _paymentIdToConfirm = null;
-      }
-    }
     _lastState = state;
   }
 

@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../models/cart_item.dart';
 import '../models/feedback_model.dart';
 import '../models/product_model.dart';
+import '../models/shop_model.dart';
 import '../providers/cart_provider.dart';
 import '../routes/app_routes.dart';
 import '../services/api_service.dart';
@@ -31,6 +32,7 @@ class _LaptopDetailScreenState extends State<LaptopDetailScreen> {
   final ApiService apiService = ApiService();
   bool _showAllFeedbacks = false;
   Product? _productDetails;
+  Shop? _shop;
 
   @override
   void initState() {
@@ -39,6 +41,24 @@ class _LaptopDetailScreenState extends State<LaptopDetailScreen> {
     _feedbacksFuture = ApiService.fetchProductFeedbacks();
     _relatedProductsFuture = _fetchRelatedProducts();
     _fetchProductDetails();
+    _fetchShop();
+  }
+
+  Future<void> _fetchShop() async {
+    try {
+      final shopId = widget.laptop['shopId'];
+      print('shopId: $shopId');
+      if (shopId != null) {
+        final shop = await ApiService.fetchShopById(shopId);
+        if (mounted && shop != null) {
+          setState(() {
+            _shop = shop;
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint("Error fetching shop info: $e");
+    }
   }
 
   Future<void> _fetchProductDetails() async {
@@ -269,6 +289,28 @@ class _LaptopDetailScreenState extends State<LaptopDetailScreen> {
                                 color: Color(0xFF1A1A1A),
                               ),
                             ),
+                            if (_shop != null && _shop!.shopName.isNotEmpty)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 4.0),
+                                child: Row(
+                                  children: [
+                                    const Icon(
+                                      Icons.store_mall_directory,
+                                      color: Color(0xFF6B7280),
+                                      size: 16,
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      _shop!.shopName,
+                                      style: const TextStyle(
+                                        fontSize: 14,
+                                        color: Color(0xFF6B7280),
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
                             const SizedBox(height: 10),
                             Row(
                               children: [
@@ -1076,6 +1118,8 @@ class _LaptopDetailScreenState extends State<LaptopDetailScreen> {
                                                     product.operatingSystem,
                                                 'description':
                                                     product.description,
+                                                'shopName': product.shopName,
+                                                'shopId': product.shopId,
                                               },
                                             );
                                           },

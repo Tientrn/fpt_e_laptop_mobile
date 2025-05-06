@@ -731,11 +731,34 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   onPressed: isSubmitting
                       ? null
                       : () async {
+                          final oldPassword = oldPasswordController.text.trim();
+                          final newPassword = newPasswordController.text.trim();
+                          final confirmPassword =
+                              confirmPasswordController.text.trim();
+
+                          if (newPassword != confirmPassword) {
+                            _showSnackBar(
+                                "New password and confirmation do not match.");
+                            return;
+                          }
+                          if (oldPassword.isEmpty || newPassword.isEmpty) {
+                            _showSnackBar(
+                                "Please fill in all password fields.");
+                            return;
+                          }
+
                           setState(() => isSubmitting = true);
-                          // Implement password change logic here
-                          Navigator.pop(context);
-                          _showSnackBar("Password update not implemented yet.");
+                          final success = await _apiService.changePassword(
+                              oldPassword, newPassword);
                           setState(() => isSubmitting = false);
+                          Navigator.pop(context);
+
+                          if (success) {
+                            _showSnackBar("Password changed successfully.");
+                          } else {
+                            _showSnackBar(
+                                "Failed to change password. Please check your current password.");
+                          }
                         },
                   child: Container(
                     padding:

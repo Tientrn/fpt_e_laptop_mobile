@@ -59,6 +59,85 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  void _showForgotPasswordDialog() {
+    final TextEditingController emailController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        bool isSubmitting = false;
+        String? message;
+        return StatefulBuilder(
+          builder: (context, setState) => AlertDialog(
+            title: const Text('Forgot Password'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: emailController,
+                  decoration: const InputDecoration(
+                    labelText: 'Enter your email',
+                  ),
+                  keyboardType: TextInputType.emailAddress,
+                ),
+                if (message != null) ...[
+                  const SizedBox(height: 10),
+                  Text(
+                    message!,
+                    style: TextStyle(
+                      color:
+                          message!.contains('sent') ? Colors.green : Colors.red,
+                    ),
+                  ),
+                ]
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: isSubmitting
+                    ? null
+                    : () async {
+                        final email = emailController.text.trim();
+                        if (email.isEmpty || !email.contains('@')) {
+                          setState(() {
+                            message = 'Please enter a valid email address.';
+                          });
+                          return;
+                        }
+                        setState(() => isSubmitting = true);
+                        final success = await _apiService.forgotPassword(email);
+                        setState(() => isSubmitting = false);
+                        if (success) {
+                          setState(() {
+                            message =
+                                'A password reset link has been sent to your email.';
+                          });
+                        } else {
+                          setState(() {
+                            message =
+                                'Failed to send reset link. Please check your email.';
+                          });
+                        }
+                      },
+                child: isSubmitting
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text('Send'),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
@@ -198,6 +277,20 @@ class _LoginScreenState extends State<LoginScreen> {
                             }
                             return null;
                           },
+                        ),
+                        const SizedBox(height: 8),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: TextButton(
+                            onPressed: _showForgotPasswordDialog,
+                            child: const Text(
+                              'Forgot password?',
+                              style: TextStyle(
+                                color: Color(0xFFFBBF24),
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
                         ),
                         const SizedBox(height: 24),
                         SizedBox(

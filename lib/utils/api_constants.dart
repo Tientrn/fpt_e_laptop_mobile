@@ -41,7 +41,6 @@ class ApiConstants {
 
   static const String createPayment = "$baseUrl/Payment/create";
   static const String getPaymentUrl = "$baseUrl/Payment";
-  static const String confirmPayment = "$baseUrl/Payment";
 
   static const String updateProfile = "$baseUrl/Authentication/update-profile";
   static const String majorsUrl = '$baseUrl/majors';
@@ -54,4 +53,9 @@ class ApiConstants {
   static const String reportDamages = '$baseUrl/report-damages';
 
   static const String updateProduct = '/products';
+  static const String updatePayment = '/Payment/update';
+  static const String getShopById = '/shops';
+
+  static const String changePassword = '/Authentication/change-password';
+  static const String forgotPassword = '/Authentication/forgot-password';
 }

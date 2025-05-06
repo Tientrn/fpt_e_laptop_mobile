@@ -22,6 +22,7 @@ import '../models/order_model.dart';
 import '../models/payment_response_model.dart';
 import '../models/product_model.dart';
 import '../models/report_damage_model.dart';
+import '../models/shop_model.dart';
 import '../providers/cart_provider.dart';
 import '../utils/api_constants.dart';
 
@@ -299,7 +300,7 @@ class ApiService {
           return null;
         }
       } else {
-        print('❌ Lỗi HTTP: ${response.statusCode}');
+        print('❌ Lỗi HTTP: ${jsonDecode(response.body)['message']}');
         return null;
       }
     } catch (e) {
@@ -1221,39 +1222,28 @@ class ApiService {
     return null;
   }
 
-  static Future<bool> confirmPayment(int paymentId) async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final String? token = prefs.getString('authToken');
+  static Future<http.Response> updateTransactionStatus(
+      String transactionCode, String status) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('authToken');
 
-      if (token == null) {
-        debugPrint("[❌ Confirm Payment] Token is NULL. Can't confirm.");
-        return false;
-      }
+    final url = Uri.parse(
+        '${ApiConstants.baseUrl}${ApiConstants.updatePayment}/$transactionCode');
+    debugPrint('PUT URL: $url');
 
-      final url =
-          Uri.parse("${ApiConstants.confirmPayment}/$paymentId/confirm");
-      debugPrint("[🔁 Confirm Payment] Sending request to $url");
+    final response = await http.put(
+      url,
+      headers: {
+        'accept': '*/*', // thêm dòng này luôn cho đúng swagger
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({
+        'status': status,
+      }),
+    );
 
-      final response = await http.post(
-        url,
-        headers: {
-          'accept': '*/*',
-          'Authorization': 'Bearer $token',
-        },
-      );
-
-      debugPrint(
-          "[✅ Confirm Payment] Status: ${response.statusCode}, Body: ${response.body}");
-
-      if (response.statusCode == 200) {
-        final jsonBody = json.decode(response.body);
-        return jsonBody['isSuccess'] == true;
-      }
-    } catch (e) {
-      debugPrint("❌ Exception during confirm payment: $e");
-    }
-    return false;
+    return response;
   }
 
   Future<Map<String, dynamic>> updateProfile({
@@ -1571,5 +1561,91 @@ class ApiService {
       description: product.description,
       imageFile: null, // 👈 không update ảnh
     );
+  }
+
+  static Future<Shop?> fetchShopById(int id) async {
+    final url =
+        Uri.parse('${ApiConstants.baseUrl}${ApiConstants.getShopById}/$id');
+
+    try {
+      final response = await http.get(url, headers: {
+        'accept': '*/*',
+      });
+
+      if (response.statusCode == 200) {
+        final body = json.decode(response.body);
+        print('Raw shop data: ${body['data']}');
+        if (body['isSuccess'] == true) {
+          return Shop.fromJson(body['data']);
+        } else {
+          throw Exception(body['message']);
+        }
+      } else {
+        throw Exception('Failed to load shop info: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('Error in fetchShopById: $e');
+      return null;
+    }
+  }
+
+  Future<bool> changePassword(String oldPassword, String newPassword) async {
+    final url = Uri.parse(ApiConstants.baseUrl + ApiConstants.changePassword);
+
+    // Lấy token từ SharedPreferences (hoặc nơi bạn lưu token)
+    final prefs = await SharedPreferences.getInstance();
+    final String? token = prefs.getString('authToken');
+
+    // Kiểm tra xem token có tồn tại hay không
+    if (token == null) {
+      // Nếu không có token, trả về false
+      return false;
+    }
+
+    // Thực hiện yêu cầu HTTP POST với token trong header
+    final response = await http.post(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token', // Thêm token vào header
+      },
+      body: json.encode({
+        'oldPassword': oldPassword,
+        'newPassword': newPassword,
+      }),
+    );
+
+    // Kiểm tra mã trạng thái của phản hồi
+    if (response.statusCode == 200) {
+      // Nếu yêu cầu thành công, trả về true
+      return true;
+    } else {
+      // Nếu yêu cầu thất bại, trả về false
+      return false;
+    }
+  }
+
+  Future<bool> forgotPassword(String email) async {
+    final url = Uri.parse(ApiConstants.baseUrl + ApiConstants.forgotPassword);
+
+    // Thực hiện yêu cầu HTTP POST
+    final response = await http.post(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: json.encode({
+        'email': email, // Gửi email trong body
+      }),
+    );
+
+    // Kiểm tra mã trạng thái của phản hồi
+    if (response.statusCode == 200) {
+      // Nếu yêu cầu thành công, trả về true
+      return true;
+    } else {
+      // Nếu yêu cầu thất bại, trả về false
+      return false;
+    }
   }
 }

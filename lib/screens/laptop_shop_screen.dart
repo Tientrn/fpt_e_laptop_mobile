@@ -738,6 +738,7 @@ class _LaptopShopScreenState extends State<LaptopShopScreen> {
                             'storage': laptop.storage,
                             'screenSize': laptop.screenSize,
                             'stock': laptop.quantity,
+                            'shopId': laptop.shopId,
                           },
                         );
                       },

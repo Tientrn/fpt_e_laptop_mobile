@@ -980,57 +980,6 @@ class _LaptopBorrowDetailScreenState extends State<LaptopBorrowDetailScreen> {
                                         return;
                                       }
 
-                                      final borrowRequests = await apiService
-                                          .fetchUserBorrowRequests();
-                                      final hasApprovedRequest =
-                                          borrowRequests.any(
-                                        (request) =>
-                                            request.status == 'Approved',
-                                      );
-
-                                      if (hasApprovedRequest) {
-                                        final donateItem = await ApiService
-                                            .fetchDonateItemById(itemId);
-
-                                        if (donateItem.status ==
-                                                "NotAvailable" ||
-                                            donateItem.status == "Borrwing") {
-                                          setState(() => isLoading = false);
-                                          Navigator.pop(context);
-                                          ScaffoldMessenger.of(context)
-                                              .showSnackBar(
-                                            const SnackBar(
-                                              content: Text(
-                                                  "You already have an approved request, and the item is not available."),
-                                              backgroundColor: Colors.orange,
-                                              duration: Duration(seconds: 8),
-                                            ),
-                                          );
-                                          return;
-                                        }
-                                      }
-
-                                      final hasPendingRequest =
-                                          borrowRequests.any(
-                                        (request) =>
-                                            request.status == 'Pending',
-                                      );
-
-                                      if (hasPendingRequest) {
-                                        setState(() => isLoading = false);
-                                        Navigator.pop(context);
-                                        ScaffoldMessenger.of(context)
-                                            .showSnackBar(
-                                          const SnackBar(
-                                            content: Text(
-                                                "You already have a pending request. Please wait before submitting a new one."),
-                                            backgroundColor: Colors.orange,
-                                            duration: Duration(seconds: 8),
-                                          ),
-                                        );
-                                        return;
-                                      }
-
                                       final borrowRequestId =
                                           await apiService.createBorrowRequest(
                                         itemId,
@@ -1038,9 +987,9 @@ class _LaptopBorrowDetailScreenState extends State<LaptopBorrowDetailScreen> {
                                         endDate!,
                                         selectedMajorId!,
                                       );
+                                      setState(() => isLoading = false);
+                                      Navigator.pop(context);
                                       if (borrowRequestId != null) {
-                                        setState(() => isLoading = false);
-                                        Navigator.pop(context);
                                         ScaffoldMessenger.of(context)
                                             .showSnackBar(
                                           const SnackBar(
@@ -1049,14 +998,26 @@ class _LaptopBorrowDetailScreenState extends State<LaptopBorrowDetailScreen> {
                                             backgroundColor: Colors.green,
                                           ),
                                         );
+                                      } else {
+                                        // Nếu API trả về null (thường là lỗi 400)
+                                        ScaffoldMessenger.of(context)
+                                            .showSnackBar(
+                                          const SnackBar(
+                                            content: Text(
+                                              "Unable to send borrow request. You may already have a pending or approved request.",
+                                            ),
+                                            backgroundColor: Colors.orange,
+                                            duration: Duration(seconds: 6),
+                                          ),
+                                        );
                                       }
                                     } catch (e) {
                                       setState(() => isLoading = false);
+                                      Navigator.pop(context);
                                       ScaffoldMessenger.of(context)
                                           .showSnackBar(
                                         SnackBar(
-                                          content:
-                                              Text('Error: ${e.toString()}'),
+                                          content: Text('Lỗi: ${e.toString()}'),
                                           backgroundColor: Colors.red,
                                         ),
                                       );

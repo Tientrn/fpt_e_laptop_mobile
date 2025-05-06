@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.example.mobile_fpt_e_laptop">
+
+    <uses-permission android:name="android.permission.INTERNET" />
     <application
         android:label="mobile_fpt_e_laptop"
         android:name="${applicationName}"
