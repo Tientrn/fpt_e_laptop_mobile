@@ -1170,7 +1170,7 @@ class ApiService {
       if (token == null) return null;
 
       final url = Uri.parse(
-          '${ApiConstants.createPayment}?orderID=$orderId&paymenMethodId=1');
+          '${ApiConstants.createPayment}?orderID=$orderId&paymenMethodId=3');
 
       final response = await http.post(
         url,
